@@ -1,0 +1,58 @@
+services:
+  dns:
+    image: andyshinn/dnsmasq:2.83
+    container_name: dns_server
+    command: "-k --address=/test-server.example.com/172.20.0.10 --log-facility=- --log-queries"
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    networks:
+      poc_net:
+        ipv4_address: 172.20.0.2
+
+  lb:
+    image: haproxy:2.8
+    container_name: load_balancer
+    ports:
+      - "8080:80"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      poc_net:
+        ipv4_address: 172.20.0.10
+    healthcheck:
+      test: ["CMD", "haproxy", "-c", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  service1:
+    image: hashicorp/http-echo
+    container_name: backend_service1
+    command: ["-text=Hello from backend 1", "-listen=:5678"]
+    networks:
+      - poc_net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  service2:
+    image: hashicorp/http-echo
+    container_name: backend_service2
+    command: ["-text=Hello from backend 2", "-listen=:5678"]
+    networks:
+      - poc_net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  poc_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
